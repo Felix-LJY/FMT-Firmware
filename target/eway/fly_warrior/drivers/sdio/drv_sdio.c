@@ -1,0 +1,257 @@
+/******************************************************************************
+ * Copyright 2020 The Firmament Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *****************************************************************************/
+
+#include "hal/sd/sd.h"
+#include "sd.h"
+#if 1
+#if defined   (__CC_ARM)        /*!< ARM compiler */
+    #pragma O0
+#elif defined (__GNUC__)        /*!< GNU compiler */
+    #pragma GCC optimize ("O0")
+#elif defined  (__TASKING__)    /*!< TASKING compiler */
+    #pragma optimize=0
+#endif /* __CC_ARM */
+#endif
+#define SD_WAIT_TIMEOUT 10
+
+static struct sd_device sd0_dev;
+//static sd_card_info_struct sd_cardinfo; /* information of SD card */
+static struct rt_mutex sd_lock;
+
+/* unlock/lock peripheral */
+#define EXAMPLE_PERIPH_WE               (LL_PERIPH_GPIO | LL_PERIPH_EFM | LL_PERIPH_FCG | \
+    LL_PERIPH_PWC_CLK_RMU | LL_PERIPH_SRAM)
+#define EXAMPLE_PERIPH_WP               (LL_PERIPH_EFM | LL_PERIPH_FCG | LL_PERIPH_SRAM)
+
+/* SD transfer mode */
+#define SD_TRANS_MD_POLLING             (0U)
+#define SD_TRANS_MD_INT                 (1U)
+#define SD_TRANS_MD_DMA                 (2U)
+/* Populate the following macro with an value, reference "SD transfer mode" */
+#define SD_TRANS_MD                     (SD_TRANS_MD_POLLING)
+/* SDIOC DMA configuration define */
+#define SDIOC_DMA_UNIT                  (CM_DMA1)
+#define SDIOC_DMA_CLK                   (FCG0_PERIPH_DMA1 | FCG0_PERIPH_AOS)
+#define SDIOC_DMA_TX_CH                 (DMA_CH0)
+#define SDIOC_DMA_RX_CH                 (DMA_CH1)
+#define SDIOC_DMA_TX_TRIG_CH            (AOS_DMA1_0)
+#define SDIOC_DMA_RX_TRIG_CH            (AOS_DMA1_1)
+#define SDIOC_DMA_TX_TRIG_SRC           (EVT_SRC_SDIOC1_DMAW)
+#define SDIOC_DMA_RX_TRIG_SRC           (EVT_SRC_SDIOC1_DMAR)
+
+/* SDIOC configuration define */
+#define SDIOC_SD_UINT                   (CM_SDIOC2)
+#define SDIOC_SD_CLK                    (FCG1_PERIPH_SDIOC2)
+#define SIDOC_SD_INT_SRC                (INT_SRC_SDIOC2_SD)
+#define SIDOC_SD_IRQ                    (INT006_IRQn)
+/* CD = PC11 */
+// #define SDIOC_CD_PORT                   (GPIO_PORT_C)
+// #define SDIOC_CD_PIN                    (GPIO_PIN_11)
+/* CK = PC12 */
+#define SDIOC_CK_PORT                   (GPIO_PORT_C)
+#define SDIOC_CK_PIN                    (GPIO_PIN_13)
+/* CMD = PD02 */
+#define SDIOC_CMD_PORT                  (GPIO_PORT_B)
+#define SDIOC_CMD_PIN                   (GPIO_PIN_00)
+/* D0 = PB07 */
+#define SDIOC_D0_PORT                   (GPIO_PORT_B)
+#define SDIOC_D0_PIN                    (GPIO_PIN_03)
+/* D1 = PA08 */
+#define SDIOC_D1_PORT                   (GPIO_PORT_A)
+#define SDIOC_D1_PIN                    (GPIO_PIN_15)
+/* D2 = PC10 */
+#define SDIOC_D2_PORT                   (GPIO_PORT_B)
+#define SDIOC_D2_PIN                    (GPIO_PIN_02)
+/* D3 = PB05 */
+#define SDIOC_D3_PORT                   (GPIO_PORT_B)
+#define SDIOC_D3_PIN                    (GPIO_PIN_01)
+
+static stc_sd_handle_t SdHandle;
+
+static en_flag_status_t SdCard_GetInsertState(void)
+{
+    en_flag_status_t enFlagSta = SET;
+
+    return enFlagSta;
+}
+
+static rt_err_t init(sd_dev_t sd)
+{
+    LL_PERIPH_WE(EXAMPLE_PERIPH_WE);
+
+    /* Enable SDIOC clock */
+    FCG_Fcg1PeriphClockCmd(SDIOC_SD_CLK, ENABLE);
+    
+	GPIO_SetDebugPort(GPIO_PIN_TDI,DISABLE);
+    GPIO_SetDebugPort(GPIO_PIN_TDO,DISABLE);
+
+    /* SDIOC pins configuration */
+    stc_gpio_init_t stcGpioInit;
+    (void)GPIO_StructInit(&stcGpioInit);
+    GPIO_REG_Unlock();
+    stcGpioInit.u16ExtInt = PIN_EXTINT_OFF;
+    stcGpioInit.u16PullUp = PIN_PU_ON;
+    (void)GPIO_Init(SDIOC_D0_PORT,SDIOC_D0_PIN, &stcGpioInit);
+    (void)GPIO_Init(SDIOC_D1_PORT,SDIOC_D1_PIN, &stcGpioInit);
+    (void)GPIO_Init(SDIOC_D2_PORT,SDIOC_D2_PIN, &stcGpioInit);
+    (void)GPIO_Init(SDIOC_D3_PORT,SDIOC_D3_PIN, &stcGpioInit);
+    (void)GPIO_Init(SDIOC_CMD_PORT,SDIOC_CMD_PIN, &stcGpioInit);
+    stcGpioInit.u16PullUp = PIN_PU_OFF;
+    GPIO_SetFunc(SDIOC_CK_PORT,  SDIOC_CK_PIN,  GPIO_FUNC_9);
+    GPIO_SetFunc(SDIOC_CMD_PORT, SDIOC_CMD_PIN, GPIO_FUNC_9);
+    GPIO_SetFunc(SDIOC_D0_PORT,  SDIOC_D0_PIN,  GPIO_FUNC_9);
+    GPIO_SetFunc(SDIOC_D1_PORT,  SDIOC_D1_PIN,  GPIO_FUNC_9);
+    GPIO_SetFunc(SDIOC_D2_PORT,  SDIOC_D2_PIN,  GPIO_FUNC_9);
+    GPIO_SetFunc(SDIOC_D3_PORT,  SDIOC_D3_PIN,  GPIO_FUNC_9);
+
+    /* Configure structure initialization */
+    SdHandle.SDIOCx                     = SDIOC_SD_UINT;
+    SdHandle.stcSdiocInit.u32Mode       = SDIOC_MD_SD;
+    SdHandle.stcSdiocInit.u8CardDetect  = SDIOC_CARD_DETECT_CD_PIN_LVL;
+    SdHandle.stcSdiocInit.u8SpeedMode   = SDIOC_SPEED_MD_HIGH;
+    SdHandle.stcSdiocInit.u8BusWidth    = SDIOC_BUS_WIDTH_4BIT;
+    SdHandle.stcSdiocInit.u16ClockDiv   = SDIOC_CLK_DIV16;
+    SdHandle.DMAx    = NULL;
+
+    /* Reset and init SDIOC */
+    if (LL_OK != SDIOC_SWReset(SdHandle.SDIOCx, SDIOC_SW_RST_ALL)) {
+        goto error;
+    } else if (SET != SdCard_GetInsertState()) {
+        goto error;
+    } else if (LL_OK != SD_Init(&SdHandle)) {
+        goto error;
+    }
+
+    return RT_EOK;
+
+error:
+    return RT_ERROR;
+}
+
+static rt_err_t sd_write(sd_dev_t sd, rt_uint8_t* buffer, rt_uint32_t sector, rt_uint32_t count)
+{
+    rt_err_t err = RT_EOK;
+    if (count == 0) {
+        return RT_EOK;
+    }
+
+    RT_TRY(rt_mutex_take(&sd_lock, TICKS_FROM_MS(SD_WAIT_TIMEOUT)));
+
+    if (LL_OK != SD_WriteBlocks(&SdHandle, sector, count, (uint8_t *)buffer, 2000U))
+        err = RT_ERROR;
+    if(err != RT_EOK)
+        console_printf("write error\n");
+
+    RT_TRY(rt_mutex_release(&sd_lock));
+
+    return err;
+}
+
+static rt_err_t sd_read(sd_dev_t sd, rt_uint8_t* buffer, rt_uint32_t sector, rt_uint32_t count)
+{
+    rt_err_t err = RT_EOK;
+
+    if (count == 0) {
+        return RT_EOK;
+    }
+
+    RT_TRY(rt_mutex_take(&sd_lock, TICKS_FROM_MS(SD_WAIT_TIMEOUT)));
+
+    if (LL_OK != SD_ReadBlocks(&SdHandle, sector, count, (uint8_t *)buffer, 2000UL))
+        err = RT_ERROR;
+
+    RT_TRY(rt_mutex_release(&sd_lock));
+    if(err != RT_EOK)
+    {
+        console_printf("Read error\n");
+    }
+
+    return err;
+}
+
+static rt_err_t sd_control(sd_dev_t sd, int cmd, void* arg)
+{
+    switch (cmd) {
+    case RT_DEVICE_CTRL_BLK_GETGEOME: {
+        struct rt_device_blk_geometry geometry;
+
+        geometry.bytes_per_sector = SdHandle.stcSdCardInfo.u32BlockSize;
+        geometry.block_size = SdHandle.stcSdCardInfo.u32BlockSize;
+        geometry.sector_count = SdHandle.stcSdCardInfo.u32BlockNum;
+        *(struct rt_device_blk_geometry*)arg = geometry;
+    } break;
+    case RT_DEVICE_CTRL_BLK_SYNC: {
+        //TODO
+    } break;
+    case RT_DEVICE_CTRL_BLK_ERASE: {
+        /* sd card is not needed to erase */
+        return RT_ERROR;
+    } break;
+    default: {
+        console_printf("unknown sd control cmd:%d\n", cmd);
+    } break;
+    }
+
+    return RT_EOK;
+}
+
+const static struct sd_ops dev_ops = {
+    .sd_init = init,
+    .sd_write = sd_write,
+    .sd_read = sd_read,
+    .sd_control = sd_control
+};
+
+rt_err_t drv_sdio_init(void)
+{
+    sd0_dev.ops = &dev_ops;
+
+    RT_TRY(rt_mutex_init(&sd_lock, "sd_lock", RT_IPC_FLAG_PRIO));
+
+    return hal_sd_register(&sd0_dev, "sd0", RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_REMOVABLE | RT_DEVICE_FLAG_STANDALONE, NULL);
+}
+
+static int init_flag = 1;
+static uint8_t write_buf[20] = {0,1,2,3,4,5,6,7,8,9,10};
+static uint8_t read_buf[20];
+void test_rw(void)
+{
+    rt_memset(read_buf,0,15);
+    if(init_flag)
+    {
+        init_flag = 0;
+        sd0_dev.ops->sd_init(0);
+        return;
+    }
+    if(sd0_dev.ops->sd_write(NULL,write_buf,10,1) != RT_EOK)
+    {
+        console_printf("write err");
+    }
+    if(sd0_dev.ops->sd_read(NULL,read_buf,10,1) != RT_EOK)
+    {
+        console_printf("read err");
+    }
+    if(rt_memcmp(read_buf, write_buf,15) != 0 )
+    {
+        console_printf("cmp error");
+    }
+    else
+    {
+        console_printf("cmp okk");
+    }
+    return;
+}
+
