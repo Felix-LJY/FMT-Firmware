@@ -57,9 +57,9 @@ static struct rt_mutex sd_lock;
 #define SDIOC_SD_CLK                    (FCG1_PERIPH_SDIOC2)
 #define SIDOC_SD_INT_SRC                (INT_SRC_SDIOC2_SD)
 #define SIDOC_SD_IRQ                    (INT006_IRQn)
-/* CD = PC11 */
-// #define SDIOC_CD_PORT                   (GPIO_PORT_C)
-// #define SDIOC_CD_PIN                    (GPIO_PIN_11)
+/* CD = PD7 */
+#define SDIOC_CD_PORT                   (GPIO_PORT_D)
+#define SDIOC_CD_PIN                    (GPIO_PIN_07)
 /* CK = PC12 */
 #define SDIOC_CK_PORT                   (GPIO_PORT_C)
 #define SDIOC_CK_PIN                    (GPIO_PIN_13)
@@ -83,9 +83,9 @@ static stc_sd_handle_t SdHandle;
 
 static en_flag_status_t SdCard_GetInsertState(void)
 {
-    en_flag_status_t enFlagSta = SET;
-
-    return enFlagSta;
+    if(GPIO_ReadInputPins(SDIOC_CD_PORT, SDIOC_CD_PIN) != PIN_RESET)
+        return RESET;
+    return SET;
 }
 
 static rt_err_t init(sd_dev_t sd)
@@ -100,16 +100,18 @@ static rt_err_t init(sd_dev_t sd)
 
     /* SDIOC pins configuration */
     stc_gpio_init_t stcGpioInit;
-    (void)GPIO_StructInit(&stcGpioInit);
+    GPIO_StructInit(&stcGpioInit);
     GPIO_REG_Unlock();
     stcGpioInit.u16ExtInt = PIN_EXTINT_OFF;
     stcGpioInit.u16PullUp = PIN_PU_ON;
-    (void)GPIO_Init(SDIOC_D0_PORT,SDIOC_D0_PIN, &stcGpioInit);
-    (void)GPIO_Init(SDIOC_D1_PORT,SDIOC_D1_PIN, &stcGpioInit);
-    (void)GPIO_Init(SDIOC_D2_PORT,SDIOC_D2_PIN, &stcGpioInit);
-    (void)GPIO_Init(SDIOC_D3_PORT,SDIOC_D3_PIN, &stcGpioInit);
-    (void)GPIO_Init(SDIOC_CMD_PORT,SDIOC_CMD_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_CD_PORT,SDIOC_CD_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_D0_PORT,SDIOC_D0_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_D1_PORT,SDIOC_D1_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_D2_PORT,SDIOC_D2_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_D3_PORT,SDIOC_D3_PIN, &stcGpioInit);
+    GPIO_Init(SDIOC_CMD_PORT,SDIOC_CMD_PIN, &stcGpioInit);
     stcGpioInit.u16PullUp = PIN_PU_OFF;
+    GPIO_Init(SDIOC_CK_PORT,SDIOC_CK_PIN, &stcGpioInit);
     GPIO_SetFunc(SDIOC_CK_PORT,  SDIOC_CK_PIN,  GPIO_FUNC_9);
     GPIO_SetFunc(SDIOC_CMD_PORT, SDIOC_CMD_PIN, GPIO_FUNC_9);
     GPIO_SetFunc(SDIOC_D0_PORT,  SDIOC_D0_PIN,  GPIO_FUNC_9);

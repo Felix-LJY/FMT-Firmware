@@ -142,9 +142,6 @@ void usb_bsp_init(usb_core_instance *pdev, stc_usb_port_identify *pstcPortIdenti
     /* Unlock peripherals or registers */
     LL_PERIPH_WE(EXAMPLE_PERIPH_WE);
 
-    /* USB clock source configure */
-    WRITE_REG8(CM_CMU->USBCKCFGR, 0x08U << 4);
-
     (void)GPIO_StructInit(&stcGpioCfg);
 
     if (USBFS_CORE_ID == pstcPortIdentify->u8CoreID) {
@@ -219,7 +216,7 @@ void usb_bsp_nvicconfig(usb_core_instance *pdev)
     /* Clear Pending */
     NVIC_ClearPendingIRQ(stcIrqRegiConf.enIRQn);
     /* Set priority */
-    NVIC_SetPriority(stcIrqRegiConf.enIRQn, DDL_IRQ_PRIO_15);
+    NVIC_SetPriority(stcIrqRegiConf.enIRQn, DDL_IRQ_PRIO_14);
     /* Enable NVIC */
     NVIC_EnableIRQ(stcIrqRegiConf.enIRQn);
 }

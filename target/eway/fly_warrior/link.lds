@@ -9,7 +9,7 @@ ENTRY(Boot_Handler)
 _estack = ORIGIN(DATA) + LENGTH(DATA);    /* end of RAM */
 
 /* Generate a link error if heap and stack don't fit into RAM */
-_system_stack_size = 0x1600; /* required amount of stack */
+_system_stack_size = 0x1000; /* required amount of stack */
 
 /* Specify the memory areas */
 MEMORY

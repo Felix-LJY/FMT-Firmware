@@ -31,9 +31,6 @@
 
 #define TMRA_MD                         (TMRA_MD_SAWTOOTH)
 #define TMRA_DIR                        (TMRA_DIR_UP)
-#define TMRA_PERIOD_VAL                 (80U - 1U)
-#define TMRA_PWMX_CMP_VAL               (24U - 1U)
-#define TMRA_PWMY_CMP_VAL               (44U - 1U)
 
 
 // #define DRV_DBG(...) console_printf(__VA_ARGS__)
@@ -45,9 +42,8 @@
 #define PWM_FREQ_400HZ (400)
 
 #define PWM_CLK_DIV0            TMRA_CLK_DIV64
-#define PWM_CLK_DIV1            TMRA_CLK_DIV32
-#define TIMER_FREQUENCY         (SystemCoreClock/32/2)       // Timer frequency: 6M
-
+#define PWM_CLK_DIV1            TMRA_CLK_DIV16
+#define TIMER_FREQUENCY         (SystemCoreClock/64)       // Timer frequency: 6M
 
 #define MAX_PWM_OUT_CHAN      12            // Main Out has 10 pwm channel
 #define PWM_DEFAULT_FREQUENCY PWM_FREQ_50HZ // pwm default frequqncy
@@ -56,6 +52,8 @@
 
 #define PWM_ARR(freq) (TIMER_FREQUENCY / freq) // CCR reload value, Timer frequency = TIMER_FREQUENCY/(PWM_ARR+1)
 
+#define TMRA_PERIOD_VAL                 PWM_ARR(PWM_DEFAULT_FREQUENCY)
+#define TMRA_PWMX_CMP_VAL               TMRA_PERIOD_VAL/2
 
 static rt_err_t pwm_config(actuator_dev_t dev, const struct actuator_configure* cfg);
 static rt_err_t pwm_control(actuator_dev_t dev, int cmd, void* arg);
@@ -85,7 +83,7 @@ static float __pwm_dc[MAX_PWM_OUT_CHAN];
 
 static void pwm_gpio_init(void)
 {
-    // GPIO_SetFunc(GPIO_PORT_I, GPIO_PIN_04, GPIO_FUNC_4);
+    GPIO_SetFunc(GPIO_PORT_I, GPIO_PIN_04, GPIO_FUNC_4);
     GPIO_SetFunc(GPIO_PORT_I, GPIO_PIN_05, GPIO_FUNC_4);
     GPIO_SetFunc(GPIO_PORT_I, GPIO_PIN_06, GPIO_FUNC_4);
     GPIO_SetFunc(GPIO_PORT_I, GPIO_PIN_07, GPIO_FUNC_4);
@@ -113,40 +111,40 @@ static void pwm_timer_init(void)
     FCG_Fcg2PeriphClockCmd(FCG2_PERIPH_TMRA_5, ENABLE);
 
     /* 2. Set a default initialization value for stcTmraInit. */
-    (void)TMRA_StructInit(&stcTmraInit);
+    TMRA_StructInit(&stcTmraInit);
 
     /* 3. Modifies the initialization values depends on the application. */
     stcTmraInit.sw_count.u8ClockDiv  = PWM_CLK_DIV0;
     stcTmraInit.sw_count.u8CountMode = TMRA_MD;
     stcTmraInit.sw_count.u8CountDir  = TMRA_DIR;
     stcTmraInit.u32PeriodValue = TMRA_PERIOD_VAL;
-    (void)TMRA_Init(CM_TMRA_1, &stcTmraInit);
-    (void)TMRA_Init(CM_TMRA_4, &stcTmraInit);
+    TMRA_Init(CM_TMRA_1, &stcTmraInit);
+    TMRA_Init(CM_TMRA_4, &stcTmraInit);
     stcTmraInit.sw_count.u8ClockDiv  = PWM_CLK_DIV1;
-    (void)TMRA_Init(CM_TMRA_5, &stcTmraInit);
+    TMRA_Init(CM_TMRA_5, &stcTmraInit);
     
-    (void)TMRA_PWM_StructInit(&stcPwmInit);
+    TMRA_PWM_StructInit(&stcPwmInit);
     stcPwmInit.u32CompareValue = TMRA_PWMX_CMP_VAL;
     stcPwmInit.u16StartPolarity       = TMRA_PWM_LOW;
     stcPwmInit.u16StopPolarity        = TMRA_PWM_LOW;
     stcPwmInit.u16PeriodMatchPolarity = TMRA_PWM_HIGH;
 
-    // (void)TMRA_PWM_Init(CM_TMRA_1, TMRA_CH1, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_1, TMRA_CH2, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_1, TMRA_CH3, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_1, TMRA_CH4, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_1, TMRA_CH1, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_1, TMRA_CH2, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_1, TMRA_CH3, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_1, TMRA_CH4, &stcPwmInit);
 
-    (void)TMRA_PWM_Init(CM_TMRA_4, TMRA_CH1, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_4, TMRA_CH2, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_4, TMRA_CH3, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_4, TMRA_CH4, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_4, TMRA_CH1, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_4, TMRA_CH2, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_4, TMRA_CH3, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_4, TMRA_CH4, &stcPwmInit);
 
-    (void)TMRA_PWM_Init(CM_TMRA_5, TMRA_CH1, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_5, TMRA_CH2, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_5, TMRA_CH3, &stcPwmInit);
-    (void)TMRA_PWM_Init(CM_TMRA_5, TMRA_CH4, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_5, TMRA_CH1, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_5, TMRA_CH2, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_5, TMRA_CH3, &stcPwmInit);
+    TMRA_PWM_Init(CM_TMRA_5, TMRA_CH4, &stcPwmInit);
 
-    // TMRA_PWM_OutputCmd(CM_TMRA_1, TMRA_CH1, ENABLE);
+    TMRA_PWM_OutputCmd(CM_TMRA_1, TMRA_CH1, ENABLE);
     TMRA_PWM_OutputCmd(CM_TMRA_1, TMRA_CH2, ENABLE);
     TMRA_PWM_OutputCmd(CM_TMRA_1, TMRA_CH3, ENABLE);
     TMRA_PWM_OutputCmd(CM_TMRA_1, TMRA_CH4, ENABLE);
@@ -184,7 +182,6 @@ rt_inline void __write_pwm(uint8_t chan_id, float dc)
     case 3:
         TMRA_SetCompareValue(CM_TMRA_1,TMRA_CH4,PWM_ARR(__pwm_freq) * dc - 1);
         break;
-#if 1
     case 4:
         TMRA_SetCompareValue(CM_TMRA_4,TMRA_CH1,PWM_ARR(__pwm_freq) * dc - 1);
         break;
@@ -209,7 +206,6 @@ rt_inline void __write_pwm(uint8_t chan_id, float dc)
     case 11:
         TMRA_SetCompareValue(CM_TMRA_5,TMRA_CH4,PWM_ARR(__pwm_freq) * dc - 1);
         break;
-#endif
     default:
         return;
     }
@@ -298,17 +294,11 @@ static rt_size_t pwm_read(actuator_dev_t dev, rt_uint16_t chan_sel, rt_uint16_t*
 static rt_size_t pwm_write(actuator_dev_t dev, rt_uint16_t chan_sel, const rt_uint16_t* chan_val, rt_size_t size)
 {
     const rt_uint16_t* index = chan_val;
-    rt_uint16_t val;
-    float dc;
 
     for (uint8_t i = 0; i < MAX_PWM_OUT_CHAN; i++) {
         if (chan_sel & (1 << i)) {
-            val = *index;
-            /* calculate pwm duty cycle */
-            dc = VAL_TO_DC(val);
             /* update pwm signal */
-            __write_pwm(i, dc);
-
+            __write_pwm(i, VAL_TO_DC(*index));
             index++;
         }
     }

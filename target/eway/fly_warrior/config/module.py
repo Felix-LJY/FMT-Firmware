@@ -31,6 +31,7 @@ MODULES += [
     'syscmd/cmd_param.c',
     'syscmd/cmd_boot_log.c',
     'syscmd/cmd_mcn.c',
+    'syscmd/cmd_adc.c',
     'syscmd/cmd_act.c',
     'syscmd/cmd_task.c',
     'syscmd/cmd_mlog.c',

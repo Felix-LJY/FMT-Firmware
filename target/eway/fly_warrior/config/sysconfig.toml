@@ -8,7 +8,7 @@ target = "Eway-FW01"
     [[console.devices]]
     type = "serial"
     name = "serial0"
-    baudrate = 57600
+    baudrate = 115200
     auto-switch = true
 
     [[console.devices]]
@@ -18,11 +18,12 @@ target = "Eway-FW01"
 
 # Mavproxy Device Configuration
 [mavproxy]
+
     [[mavproxy.devices]]
     chan = 0
     type = "serial"
     name = "serial1"
-    baudrate = 57600
+    baudrate = 921600
 
     [[mavproxy.devices]]
     chan = 0
@@ -74,4 +75,4 @@ target = "Eway-FW01"
 	[[actuator.mappings]]
     from = "rc_channels"
     to = "main_out"
-    chan-map = [[3,3,3,3],[1,2,3,4]]
+    chan-map = [[1,2,3,4],[1,2,3,4]]

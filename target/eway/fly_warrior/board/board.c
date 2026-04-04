@@ -222,6 +222,10 @@ void Error_Handler(void)
 /* this function will be called before rtos start, which is not in the thread context */
 void bsp_early_initialize(void)
 {
+    /* NTOE: CPU and RCC config has been done in Bootloader, in order to avoid user mistaken crucial registers */
+    //CPU_Config();
+    //SystemClock_Config();
+
     /* init system heap */
     rt_system_heap_init((void*)SYSTEM_FREE_MEM_BEGIN, (void*)SYSTEM_FREE_MEM_END);
 
@@ -256,6 +260,9 @@ void bsp_early_initialize(void)
 /* this function will be called after rtos start, which is in thread context */
 void bsp_initialize(void)
 {
+    /* clear screen */
+    console_printf("\f\033[3J\033[H");
+    
     /* system time module init */
     FMT_CHECK(systime_init());
 
